@@ -1,6 +1,7 @@
 require("dotenv").config()
 
-const fs = require("fs")
+const fs = require("fs").promises
+const util = require("util")
 const readline = require("readline")
 const { google } = require("googleapis")
 
@@ -9,19 +10,28 @@ const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
-const TOKEN_PATH = "../../data/token.json"
+const TOKEN_PATH = "./data/token.json"
+
+// Promisfy readFile to await until ghseets data is fetched
+const readFile = util.promisify(fs.readFile)
 
 let fetchedData = []
 
-function fetchedKeysAndDescs() {
+async function fetchedKeysAndDescs() {
   // Load client secrets from a local file.
-  fs.readFile("../../data/credentials.json", (err, content) => {
-    if (err) return console.log("Error loading client secret file:", err)
-    // Authorize a client with credentials, then call the Google Sheets API.
-    authorize(JSON.parse(content), listMajors)
-  })
+  // const data = await fs.readFile("./data/credentials.json", async (err, content) => {
+  //   await console.log("middle")
+  //   if (err) return console.log("Error loading client secret file:", err)
+  //   //Authorize a client with credentials, then call the Google Sheets API.
+  //   await authorize(JSON.parse(content), listMajors)
+  // })
 
-  console.log(fetchedData);
+  const content = await fs.readFile("./data/credentials.json")
+
+  await authorize(JSON.parse(content), listMajors)
+
+  // let content = fs.readFileSync("./data/credentials.json")
+  // await authorize(JSON.parse(content), listMajors)
 
   return fetchedData
 }
@@ -32,7 +42,7 @@ function fetchedKeysAndDescs() {
  * @param {Object} credentials The authorization client credentials.
  * @param {function} callback The callback to call with the authorized client.
  */
-function authorize(credentials, callback) {
+async function authorize(credentials, callback) {
   const { client_secret, client_id, redirect_uris } = credentials.installed
   const oAuth2Client = new google.auth.OAuth2(
     client_id,
@@ -41,11 +51,15 @@ function authorize(credentials, callback) {
   )
 
   // Check if we have previously stored a token.
-  fs.readFile(TOKEN_PATH, (err, token) => {
-    if (err) return getNewToken(oAuth2Client, callback)
-    oAuth2Client.setCredentials(JSON.parse(token))
-    callback(oAuth2Client)
-  })
+  const token = await fs.readFile(TOKEN_PATH)
+  // , (err, token) => {
+  //   if (err) return getNewToken(oAuth2Client, callback)
+  //   oAuth2Client.setCredentials(JSON.parse(token))
+  //   callback(oAuth2Client)
+  // })
+
+  oAuth2Client.setCredentials(JSON.parse(token))
+  await callback(oAuth2Client)
 }
 
 /**
@@ -87,28 +101,33 @@ function getNewToken(oAuth2Client, callback) {
  */
 async function listMajors(auth) {
   const sheets = google.sheets({ version: "v4", auth })
-  await sheets.spreadsheets.values.get(
+  const sheetData = await sheets.spreadsheets.values.get(
     {
       // spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
       spreadsheetId: "1TFVlpmELCoOniyCF1H8cTtc_IMnLgb5DfS8-L6omoDk",
       range: "A2:B",
-    },
-    (err, res) => {
-      if (err) return console.log("The API returned an error: " + err)
-      const rows = res.data.values
-      // Global data to pull up from this script
-      fetchedData = rows
-      if (rows.length) {
-        console.log("Name, Major:")
-        // Print columns A and E, which correspond to indices 0 and 4.
-        rows.map(row => {
-          console.log(`${row[0]}, ${row[1]}`)
-        })
-      } else {
-        console.log("No data found.")
-      }
     }
+    // },
+    // (err, res) => {
+    //   if (err) return console.log("The API returned an error: " + err)
+    //   const rows = res.data.values
+    //   // Global data to pull up from this script
+    //   fetchedData = rows
+    //   console.log(fetchedData)
+    //   if (rows.length) {
+    //     console.log("Name, Major:")
+    //     // Print columns A and E, which correspond to indices 0 and 4.
+    //     rows.map(row => {
+    //       console.log(`${row[0]}, ${row[1]}`)
+    //     })
+    //   } else {
+    //     console.log("No data found.")
+    //   }
+    // }
   )
+
+  // console.log(sheetData.data.values)
+  fetchedData = sheetData.data.values
 }
 
-export default fetchedKeysAndDescs
+module.exports = fetchedKeysAndDescs

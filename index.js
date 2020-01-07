@@ -8,10 +8,13 @@ const fs = require("fs"),
   slugify = require("./src/utils/text-utils").slugify,
   capCase = require("./src/utils/text-utils").capCase,
   removeCityState = require("./src/utils/helpers").removeCityState,
+  fetchedKeysAndDescs = require("./src/utils/gsheets-fetch-keywords"),
   companies = require("./data/company-names.json").companyNames //[
 //   ...require("./data/companies-india-1-to-4.json").companyNames,
 //   ...require("./data/companies-india-5-to-10").companyNames,
 // ]
+
+let gsheetsKandDData = []
 
 let data = {}
 
@@ -20,6 +23,8 @@ let gcse = gapi.google.customsearch("v1")
 runTemplateGen()
 
 async function runTemplateGen() {
+  gsheetsKandDData = await fetchedKeysAndDescs()
+
   for (let i = 0; i < companies.length; i++) {
     try {
       let tempCompany = companies[i].replace(/\+/g, "%2b").replace(/&/g, "%26")
@@ -49,7 +54,7 @@ async function runTemplateGen() {
       // console.log(entry)
       let keywords = entry.custom_fields.custom_label_1454401
       let keyword = ""
-
+      //TODO: find a way to pair keywords matching with their descriptions
       if (keywords != null) {
         if (keywords.split(/\r?\n/)[0].replace(/[\W\S\d]/g, "").length > 0) {
           // Remove numbers and symbols
@@ -118,8 +123,7 @@ async function runTemplateGen() {
           : Array.from({ length: 5 }, (v, k) => `{KEYWORD ${k + 1}}`)
 
       //* Images
-      if (keyword.length > 0)
-        data.images = await fetchGImages(removeCityState(keyword))
+      if (keyword.length > 0) data.images = false //await fetchGImages(removeCityState(keyword))
 
       enterContent(data)
 
@@ -168,8 +172,8 @@ function parseDesc(desc, fbDesc) {
 }
 
 async function fetchGImages(q) {
-  console.log(q);
-  
+  console.log(q)
+
   let res = await gcse.cse.list({
     cx: process.env.google_cse_cx_id_1,
     auth: process.env.google_api_key,
@@ -230,8 +234,31 @@ function enterContent(data) {
     )
   }
 
+  // Parse keyword and description data
+  const dummyDescData = [
+    "Ready to upgrade your bathroom? Give us a call today!",
+    "Let us help make your dream kitchen a reality in your home.",
+    "Call us for other home remodeling services too!",
+    "We can custom build your new home!",
+  ]
   data.keywords.map((keyword, i) => {
+    //loop through each keyword until match is found -> assign desc pair
+    let matchedDesc = null
+    for (let i = 0; i < gsheetsKandDData.length; i++) {
+      if (
+        keyword.trim().toLowerCase() ==
+        gsheetsKandDData[i][0].trim().toLowerCase()
+      ) {
+        matchedDesc = gsheetsKandDData[i][1]
+        break
+      }
+    }
+
     content = content.replace(`\${KEY${i + 1}}`, capCase(keyword))
+    content = content.replace(
+      `\${DESC${i + 1}}`,
+      matchedDesc ? matchedDesc : dummyDescData[i]
+    )
   })
 
   content = content.replace(/\r?\n/g, "")
