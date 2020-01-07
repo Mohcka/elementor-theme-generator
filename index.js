@@ -235,6 +235,7 @@ function enterContent(data) {
   })
 
   content = content.replace(/\r?\n/g, "")
+  content = content.replace(/\t/g, " ")
 
   fs.mkdirSync(`${__dirname}/templates/${slugify(data.companyName)}`, {
     recursive: true,
