@@ -123,7 +123,7 @@ async function runTemplateGen() {
           : Array.from({ length: 5 }, (v, k) => `{KEYWORD ${k + 1}}`)
 
       //* Images
-      if (keyword.length > 0) data.images = false //await fetchGImages(removeCityState(keyword))
+      if (keyword.length > 0) data.images = await fetchGImages(removeCityState(keyword))
 
       enterContent(data)
 
@@ -261,6 +261,7 @@ function enterContent(data) {
     )
   })
 
+  // Remove return lines and replace tabs with whitespace
   content = content.replace(/\r?\n/g, "")
   content = content.replace(/\t/g, " ")
 
@@ -270,7 +271,7 @@ function enterContent(data) {
 
   fs.writeFileSync(
     `templates/${slugify(data.companyName)}/template.json`,
-    content
+    content.trim()
   )
 }
 
